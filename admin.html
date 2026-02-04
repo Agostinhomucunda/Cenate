@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Cenate Creators Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>PAINEL ADMIN</h1>
+  <p>Gerencie jogadores e atualizações</p>
+</header>
+
+<section id="loginSection">
+  <h3>Login</h3>
+  <form id="loginForm">
+    <input type="email" id="adminEmail" placeholder="Email" required />
+    <input type="password" id="adminPass" placeholder="Senha" required />
+    <button type="submit">Entrar</button>
+  </form>
+  <div id="loginMsg"></div>
+</section>
+
+<section id="adminSection" style="display:none;">
+
+  <nav>
+    <button onclick="showAdminTab('managePlayers')">Jogadores</button>
+    <button onclick="showAdminTab('updates')">Atualizações</button>
+  </nav>
+
+  <!-- ===== JOGADORES ===== -->
+  <div id="managePlayers" class="adminTab">
+    <input type="text" id="searchAdminPlayers" placeholder="Pesquisar jogadores..." onkeyup="searchAdminPlayers()">
+    <div id="adminPlayerList" class="player-list"></div>
+  </div>
+
+  <!-- ===== ATUALIZAÇÕES ===== -->
+  <div id="updates" class="adminTab" style="display:none;">
+    <h3>Nova atualização</h3>
+    <form id="updateForm">
+      <textarea id="updateText" placeholder="Escreva a mensagem" required></textarea><br/>
+      <input type="text" id="updateImage" placeholder="Link da imagem (opcional)"><br/>
+      <button type="submit">Publicar</button>
+    </form>
+    <div id="updateMsg"></div>
+  </div>
+
+</section>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { 
+  getFirestore, collection, addDoc, getDocs, query, where, updateDoc, doc, onSnapshot 
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+// ===== FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAkzjSSNpENw9GC1_z8DXizFFjen5CND0E",
+  authDomain: "hub-cenate.firebaseapp.com",
+  projectId: "hub-cenate",
+  storageBucket: "hub-cenate.firebasestorage.app",
+  messagingSenderId: "56101635493",
+  appId: "1:56101635493:web:e4e85b3fdcc500ade7944c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// ===== LOGIN ADMIN =====
+const loginForm = document.getElementById("loginForm");
+const loginMsg = document.getElementById("loginMsg");
+const loginSection = document.getElementById("loginSection");
+const adminSection = document.getElementById("adminSection");
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("adminEmail").value;
+  const pass = document.getElementById("adminPass").value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    loginSection.style.display = "none";
+    adminSection.style.display = "block";
+    loadPlayers();
+  } catch(err) {
+    loginMsg.innerHTML = "❌ Erro no login: " + err.message;
+  }
+});
+
+// ===== MOSTRAR ABAS =====
+function showAdminTab(tabName){
+  document.querySelectorAll(".adminTab").forEach(t=> t.style.display="none");
+  const tab = document.getElementById(tabName);
+  if(tab) tab.style.display="block";
+}
+window.showAdminTab = showAdminTab;
+
+// ===== CARREGAR JOGADORES =====
+async function loadPlayers(){
+  const listDiv = document.getElementById("adminPlayerList");
+  listDiv.innerHTML = "";
+  const snapshot = await getDocs(collection(db,"players"));
+
+  snapshot.forEach(docSnap=>{
+    const p = docSnap.data();
+    const card = document.createElement("div");
+    card.className = "player-card";
+    card.innerHTML = `
+      <div class="player-avatar" style="background:${p.color}">${p.emoji}</div>
+      <div class="player-info">
+        ${p.fullname}<br/>
+        ID - ${docSnap.id}<br/>
+        JOGADOR #${p.number}<br/>
+        XP: ${p.xp} | Status: ${p.status}
+      </div>
+      <div style="margin-top:5px;">
+        <button onclick="changeXP('${docSnap.id}',1)">+XP</button>
+        <button onclick="changeXP('${docSnap.id}',-1)">-XP</button>
+        <button onclick="eliminar('${docSnap.id}')">Eliminar</button>
+      </div>
+    `;
+    listDiv.appendChild(card);
+  });
+}
+window.loadPlayers = loadPlayers;
+
+// ===== PESQUISA JOGADORES =====
+window.searchAdminPlayers = async () => {
+  const value = document.getElementById("searchAdminPlayers").value.toLowerCase();
+  const listDiv = document.getElementById("adminPlayerList");
+  listDiv.innerHTML = "";
+  const snapshot = await getDocs(collection(db,"players"));
+  snapshot.forEach(docSnap=>{
+    const p = docSnap.data();
+    if(p.fullname.toLowerCase().includes(value) || p.username.toLowerCase().includes(value)){
+      const card = document.createElement("div");
+      card.className = "player-card";
+      card.innerHTML = `
+        <div class="player-avatar" style="background:${p.color}">${p.emoji}</div>
+        <div class="player-info">
+          ${p.fullname}<br/>
+          ID - ${docSnap.id}<br/>
+          JOGADOR #${p.number}<br/>
+          XP: ${p.xp} | Status: ${p.status}
+        </div>
+        <div style="margin-top:5px;">
+          <button onclick="changeXP('${docSnap.id}',1)">+XP</button>
+          <button onclick="changeXP('${docSnap.id}',-1)">-XP</button>
+          <button onclick="eliminar('${docSnap.id}')">Eliminar</button>
+        </div>
+      `;
+      listDiv.appendChild(card);
+    }
+  });
+};
+
+// ===== FUNÇÕES ADMIN =====
+window.changeXP = async (id,amount) => {
+  const docRef = doc(db,"players",id);
+  const snap = await getDocs(query(collection(db,"players"), where("__name__","==",id)));
+  const docSnap = await docRef.get();
+  const playerData = await docRef.get();
+  if(playerData.exists()){
+    await updateDoc(docRef,{xp: playerData.data().xp + amount});
+    loadPlayers();
+  }
+}
+
+window.eliminar = async (id) => {
+  const docRef = doc(db,"players",id);
+  await updateDoc(docRef,{status:"eliminado"});
+  loadPlayers();
+};
+
+// ===== ATUALIZAÇÕES =====
+const updateForm = document.getElementById("updateForm");
+const updateMsg = document.getElementById("updateMsg");
+
+updateForm.addEventListener("submit", async e=>{
+  e.preventDefault();
+  const text = document.getElementById("updateText").value;
+  const image = document.getElementById("updateImage").value;
+
+  if(!text) return;
+
+  await addDoc(collection(db,"updates"),{
+    text,
+    image: image || "",
+    created: Date.now()
+  });
+
+  updateMsg.innerHTML = "✅ Atualização publicada!";
+  updateForm.reset();
+});
+</script>
+</body>
+</html>
